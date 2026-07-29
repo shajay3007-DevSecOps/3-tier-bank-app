@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # Database Tier
+  db:
+    image: postgres:15-alpine
+    container_name: bank_db
+    environment:
+      POSTGRES_USER: bankuser
+      POSTGRES_PASSWORD: bankpass
+      POSTGRES_DB: bankdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - backend-db-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bankuser -d bankdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Application Tier (Backend API)
+  backend:
+    build: ./backend
+    container_name: bank_backend
+    environment:
+      DB_HOST: db
+      DB_USER: bankuser
+      DB_PASSWORD: bankpass
+      DB_NAME: bankdb
+      PORT: 5000
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - frontend-backend-net
+      - backend-db-net
+
+  # Presentation Tier (Frontend)
+  frontend:
+    build: ./frontend
+    container_name: bank_frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - frontend-backend-net
+
+networks:
+  frontend-backend-net:
+    driver: bridge
+  backend-db-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
